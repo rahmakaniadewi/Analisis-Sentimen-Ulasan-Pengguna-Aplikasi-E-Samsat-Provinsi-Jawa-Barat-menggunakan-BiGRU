@@ -1,0 +1,324 @@
+import pandas as pd
+#Koneksi pada Google Drive
+from google.colab import drive
+drive.mount('/content/drive')
+#Input Data
+data = pd.read_csv('/content/drive/MyDrive/SKRIPSI/Data Labelling.csv',sep=";")
+data
+
+#Data Pre-Processing
+#Case Folding
+data['review'] = data['review'].str.lower()
+print('Case Folding Result : \n')
+print(data['review'].head(5))
+print('\n\n\n')
+import string, re
+import nltk
+nltk.download('punkt')
+from nltk.tokenize import word_tokenize 
+
+import string, re
+import nltk
+nltk.download('punkt')
+from nltk.tokenize import word_tokenize 
+#Tokenizing
+def remove_comments_special(text):
+    #menghapus karakter khusus dalam teks, seperti tab, newline, dan backslash
+    text = text.replace('\\t'," ").replace('\\n'," ").replace('\\u'," ").replace('\\'," ").replace('.'," ")
+    # remove non ASCII (emoticon, chinese word, .etc)
+    text = text.encode('ascii', 'replace').decode('ascii')
+    # remove mention, link, hashtag
+    text = ' '.join(re.sub("([@#][A-Za-z0-9]+)|(\w+:\/\/\S+)"," ", text).split())
+    # remove incomplete URL
+    return text.replace("http://", " ").replace("https://", " ")
+data['review'] = data['review'].apply(remove_comments_special)
+
+#menghapus angka dalam teks dengan menggunakan regular expression
+def remove_number(text):
+    return  re.sub(r"\d+", " ", text)
+data['review'] = data['review'].apply(remove_number)
+#menghapus emotikon dari teks menggunakan regular expression
+def remove_emoticons(text):
+    emoticon_pattern = re.compile("["
+                                 u"\U0001F600-\U0001F64F"  # emoticons
+                                 u"\U0001F300-\U0001F5FF"  # simbol & piktogram
+                                 u"\U0001F680-\U0001F6FF"  # transportasi & simbol peralatan
+                                 u"\U0001F1E0-\U0001F1FF"  # bendera negara
+                                 u"\U00002702-\U000027B0"  # simbol lainnya
+                                 u"\U000024C2-\U0001F251" 
+                                 "]+", flags=re.UNICODE)
+    return emoticon_pattern.sub(r'', text)
+data['review'] = data['review'].apply(remove_emoticons)
+#data['review'] = data['review'].apply(remove_number)
+def remove_punctuation(text):
+    return text.translate(str.maketrans("","",string.punctuation))
+data['review'] = data['review'].apply(remove_punctuation)
+# menghapus spasi yang ada di awal dan akhir teks menggunakan str.strip()
+def remove_whitespace_LT(text):
+    return text.strip()
+data['review'] = data['review'].apply(remove_whitespace_LT)
+#menghapus spasi berlebih dalam teks dengan menggantinya dengan satu spasi menggunakan regular expression
+def remove_extra_spaces(text):
+    return re.sub(r'\s+', ' ', text)
+data['review'] = data['review'].apply(remove_extra_spaces)
+#mengganti multiple whitespace (spasi berturut-turut) dengan satu spasi menggunakan regular expression
+def remove_whitespace_multiple(text):
+    return re.sub('\s+',' ',text)
+data['review'] = data['review'].apply(remove_whitespace_multiple)
+#menghapus huruf yang berulang dalam teks
+def remove_repeated_letters(text):
+    return re.sub(r"(.)\1+", r"\1", text)
+data['review'] = data['review'].apply(remove_repeated_letters)
+
+#menghapus kata-kata yang terdiri dari satu huruf (single character) dalam teks menggunakan regular expression
+def remove_singl_char(text):
+    return re.sub(r"\b[a-zA-Z]\b", " ", text)
+data['review'] = data['review'].apply(remove_singl_char)
+#mengubah kalimat menjadi token
+def word_tokenize_wrapper(text):
+    return word_tokenize(text)
+data['comments_tokens'] = data['review'].apply(word_tokenize_wrapper)
+print('Tokenizing Result : \n') 
+print(data['comments_tokens'].head())
+print('\n\n\n')
+
+#Filtering
+#Spelling Normalization
+normalizad_word = pd.read_csv("https://raw.githubusercontent.com/meisaputri21/Indonesian-Twitter-Emotion-Dataset/master/kamus_singkatan.csv", sep=";", header=None)
+normalizad_word_dict = {}
+
+for index, row in normalizad_word.iterrows():
+    if row[0] not in normalizad_word_dict:
+        normalizad_word_dict[row[0]] = row[1] 
+
+def normalized_term(document):
+    return [normalizad_word_dict[term] if term in normalizad_word_dict else term for term in document]
+data['comments_normalized'] = data['comments_tokens'].apply(normalized_term)
+
+normalizad_word2 = pd.read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vRQS3tlUL5EcxYqbbYzFLHmHaqm2npjY-DLyz0dzwMIcUVhfoVWKuhR52P9YCqbAyY9zCgT66JVutWA/pub?output=csv",header=None)
+normalizad_word_dict2 = {}
+
+for index, row in normalizad_word2.iterrows():
+    if row[0] not in normalizad_word_dict2:
+        normalizad_word_dict2[row[0]] = row[1] 
+def normalized_term2(document):
+    return [normalizad_word_dict2[term] if term in normalizad_word_dict2 else term for term in document]
+data['comments_normalized'] = data['comments_normalized'].apply(normalized_term2)
+
+#Stopword Removal
+list_stopwords= pd.read_csv('/content/drive/MyDrive/SKRIPSI/stopwordbahasa.csv')
+list_stopwords = set(list_stopwords)
+def stopwords_removal(words):
+    return [word for word in words if word not in list_stopwords]
+data['comments_tokens_sw'] = data['comments_normalized'].apply(stopwords_removal) 
+
+#Stemming
+# import Sastrawi package
+! pip install Sastrawi
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+# create stemmer
+factory = StemmerFactory()
+stemmer = factory.create_stemmer()
+#stemmed
+def stemmed_wrapper(term):
+    return stemmer.stem(term)
+term_dict = {}
+for document in data['Comments']:
+    for term in document:
+        if term not in term_dict:
+            term_dict[term] = ' '     
+print(len(term_dict))
+print("------------------------")
+for term in term_dict:
+    term_dict[term] = stemmed_wrapper(term)
+    print(term,":" ,term_dict[term])
+print(term_dict)
+print("------------------------")
+# apply stemmed term to dataframe
+def get_stemmed_term(document):
+    return [term_dict[term] for term in document]
+
+data['comments_tokens_stemmed'] = data['Comments'].apply(get_stemmed_term)
+print(data['comments_tokens_stemmed'])
+
+###WordCloud
+#Import Library untuk WordCloud
+import pandas as pd
+import matplotlib.pyplot as plt
+%matplotlib inline
+from wordcloud import WordCloud
+
+text = " ".join(title for title in data["Ulasan_clean"])
+word_cloud = WordCloud(collocations = False, background_color = 'white',
+                        width = 2048, height = 1080).generate(text)
+#Menyimpan Gambar WordCloud
+word_cloud.to_file('wordcloud.png')
+#Menampilkan Hasil WordCloud
+plt.imshow(word_cloud, interpolation='bilinear')
+plt.axis("off")
+plt.show()
+
+###Word Embedding
+df_preprocessed = data.drop(labels=['wordcloud','review','label','comments_tokens', 'comments_normalized','comments_tokens_sw','Comments',
+'comments_tokens_stemmed'], axis=1)
+
+import gzip
+from urllib.request import urlopen
+import numpy as np
+file = gzip.open(urlopen('https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.id.300.vec.gz'))
+
+vocab_and_vectors = {}
+# put words as dict indexes and vectors as words values
+for line in file:
+    values = line.split()
+    word = values [0].decode('utf-8')
+    vector = np.asarray(values[1:], dtype='float32')
+    vocab_and_vectors[word] = vector
+# more imports
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.utils import to_categorical
+
+# how many features should the tokenizer extract
+features = 500
+tokenizer = Tokenizer(num_words = features)
+# fit the tokenizer on our text
+texts = df_preprocessed.Ulasan_clean
+tokenizer.fit_on_texts(texts)
+# get all words that the tokenizer knows
+word_index = tokenizer.word_index
+print('Found %s unique tokens.' % len(word_index))
+# put the tokens in a matrix
+X = tokenizer.texts_to_sequences(df_preprocessed["Ulasan_clean"].tolist())
+X = pad_sequences(X)
+# prepare the labels
+Y = df_preprocessed["sentiment"]
+from keras.utils.np_utils import to_categorical
+print(texts)
+
+embedding_matrix = np.zeros((len(word_index) + 1, 300))
+for word, i in word_index.items():
+    embedding_vector = vocab_and_vectors.get(word)
+    # words that cannot be found will be set to 0
+    if embedding_vector is not None:
+        embedding_matrix[i] = embedding_vector
+
+# Print sample of tokenized text
+sample_tokenized = texts.sample(3)
+for i, tokenized in sample_tokenized.items():
+  print(tokenized)
+  print(X[i])
+  print('\n')
+
+#Pembagian Data
+# Pembagian train (pelatihan) dan testing
+Y = data["sentiment"]
+Y
+# One hot encoding label
+from keras.utils.np_utils import to_categorical
+Y = to_categorical(Y, num_classes= 3)
+Y
+# split in train and test 80:20
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size= 0.2, stratify=Y, random_state=14)
+print(X_train.shape, Y_train.shape)
+print(X_test.shape, Y_test.shape)
+print(X_train.shape)
+print(X_test.shape)
+print(Y_train.shape)
+print(Y_test.shape)
+# grafik data training dan testing
+sns.countplot(Y_train,label='count')
+plt.ylabel('Frekuensi', fontsize=12)
+plt.xlabel('Label', fontsize=12)
+plt.show()
+sns.countplot(Y_test,label='count')
+plt.ylabel('Frekuensi', fontsize=12)
+plt.xlabel('Label', fontsize=12)
+plt.show()
+
+#Random Over Sampling
+from collections import Counter
+Counter(y_train.argmax(axis=1))
+from imblearn.over_sampling import RandomOverSampler
+y_train.argmax(axis=1)
+# transform the dataset
+oversample = RandomOverSampler(sampling_strategy='not majority')
+X_over, y_over = oversample.fit_resample(X_train, y_train.argmax(axis=1))
+# summarize the new class distribution
+counter = Counter(y_over)
+print(counter)
+sns.countplot(y_over,label='count')
+plt.ylabel('Frekuensi', fontsize=12)
+plt.xlabel('Label', fontsize=12)
+plt.show()
+# # One hot encoding the label
+from keras.utils.np_utils import to_categorical
+y_over = to_categorical(y_over, num_classes=3)
+y_over
+print(X_train.shape)
+print(X_test.shape)
+print(y_train.shape)
+print(y_test.shape)
+print(X_smote.shape)
+print(y_smote.shape)
+print(X_over.shape)
+print(y_over.shape)
+
+#Pemodelan Bidirectional Gated Recurrent Unit (BiGRU) 
+# Hyperparameters range
+learning_rate = [0.001, 0.01, 0.1]
+dropout_rate = [0.1, 0.2, 0.3]
+use_batch_norm = [True, False]
+batch_size = [16, 32, 64]
+neurons = [32, 64, 128]
+dense_dim = [6,8,16,32,64]
+# Randomly select hyperparameters
+import random
+selected_dropout_rate = random.choice(dropout_rate)
+selected_use_batch_norm = random.choice(use_batch_norm)
+selected_batch_size = random.choice(batch_size)
+selected_neurons = random.choice(neurons)
+selected_learning_rate = random.choice(learning_rate)
+selected_dense_dim = random.choice(dense_dim)
+#Build Model
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Bidirectional, GRU, Dropout, BatchNormalization, Dense, Flatten
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam
+
+def create_model(dropout_rate, use_batch_norm, batch_size, neurons, learning_rate):
+    model = Sequential()
+    model.add(Embedding(len(word_index) + 1, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH, weights=[embedding_matrix], trainable=False))
+    model.add(Bidirectional(GRU(neurons, kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0.01, l2=0.01))))
+    if use_batch_norm:
+        model.add(BatchNormalization())
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(selected_dense_dim, activation='relu'),
+    model.add(Dense(3, activation='softmax'))
+    optimizer = Adam(learning_rate= selected_learning_rate)
+    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=[['accuracy', 'val_loss']])
+    
+    return model
+# Create model with selected hyperparameters
+model = create_model(selected_learning_rate,selected_dropout_rate, selected_use_batch_norm, selected_batch_size, selected_neurons)
+# Define early stopping
+early_stopping = EarlyStopping(patience=3, monitor='val_loss', mode='min', restore_best_weights=True)
+# Train the model
+HistoryBiGRU = model.fit(X_over, y_over, batch_size=selected_batch_size, epochs=10, validation_data= (X_test, y_test), validation_steps=30, callbacks=[early_stopping])
+
+#Evaluasi Model
+# Predict classes for test data
+y_pred = model.predict(X_test)
+y_pred_classes = np.argmax(y_pred, axis=1)
+y_true = np.argmax(y_test, axis=1)
+# Compute confusion matrix
+from sklearn.metrics import confusion_matrix
+cm = confusion_matrix(y_true, y_pred_classes)
+# Plot confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cbar=False)
+plt.xlabel('Predicted Labels')
+plt.ylabel('True Labels')
+plt.title('Confusion Matrix')
+plt.show()
