@@ -289,8 +289,10 @@ from tensorflow.keras.optimizers import Adam
 
 def create_model(dropout_rate, use_batch_norm, batch_size, neurons, learning_rate):
     model = Sequential()
-    model.add(Embedding(len(word_index) + 1, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH, weights=[embedding_matrix], trainable=False))
-    model.add(Bidirectional(GRU(neurons, kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0.01, l2=0.01))))
+    model = Sequential()
+    model.add(Embedding(len(word_index) + 1, EMBEDDING_DIM, weights=[embedding_matrix], trainable=False
+))
+    model.add(Bidirectional(GRU(selected_neurons, kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0.01, l2=0.01))))
     if use_batch_norm:
         model.add(BatchNormalization())
     model.add(Dropout(dropout_rate))
@@ -299,6 +301,7 @@ def create_model(dropout_rate, use_batch_norm, batch_size, neurons, learning_rat
     optimizer = Adam(learning_rate= selected_learning_rate)
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=[['accuracy', 'val_loss']])
     
+
     return model
 # Create model with selected hyperparameters
 model = create_model(selected_learning_rate,selected_dropout_rate, selected_use_batch_norm, selected_batch_size, selected_neurons)
